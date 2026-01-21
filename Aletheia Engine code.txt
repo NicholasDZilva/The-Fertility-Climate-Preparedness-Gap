@@ -1,0 +1,93 @@
+@dataclass
+class AletheiaEngine:
+    """
+    Orchestrates response consistency analysis, narrative pattern evaluation,
+    and produces a neutral conclusion summary for any narrative.
+    """
+    response_checker: ResponseConsistencyCheck = field(default_factory=ResponseConsistencyCheck)
+    observations: List[Dict[str, Any]] = field(default_factory=list)
+
+    def analyse(self, narrative_text: str, input_context: Dict[str, Any], system_response: Dict[str, Any]) -> Dict[str, Any]:
+
+        response_analysis = self.response_checker.evaluate(input_context, system_response)
+        if response_analysis.get("signal_detected"):
+            self.observations.append(response_analysis)
+
+        # Generate structural analysis
+        pattern_findings_raw = generate_structural_analysis(narrative_text, return_details=True)
+
+        # Aggregate category flags
+        category_flags = {
+            "Institutional Response": "Low",
+            "Narrative Patterns": "Low",
+            "Corporate / NGO Influence": "Low",
+            "Behavioural Influence": "Low"
+        }
+        total_score = 0
+        for pf in pattern_findings_raw:
+            cat = pf["category"]
+            if cat in category_flags:
+                category_flags[cat] = "Medium" if category_flags[cat] == "Low" else "High"
+            total_score += pf["weight"]
+
+        # Build conclusion paragraph
+        conclusion = (
+            "This analysis highlights several structural elements in the narrative that merit closer scrutiny, "
+            "including the ways justification, authority, and framing are used. "
+            "While responses were proportional and cooperative, certain patterns suggest areas where transparency, "
+            "accountability, and clarity could be strengthened. "
+            "This output is intended as a neutral signal for further investigation, providing insight into potential "
+            "systemic influences without passing judgment."
+        )
+
+        return {
+            "response_assessment": response_analysis,
+            "narrative_analysis": {
+                "total_structural_score": total_score,
+                "category_flags": category_flags,
+                "pattern_findings": pattern_findings_raw,
+                "conclusion": conclusion
+            },
+            "recorded_observations": len(self.observations)
+        }
+
+# Adjust generate_structural_analysis to optionally return detailed info
+def generate_structural_analysis(text: str, return_details=False) -> list:
+    findings = []
+
+    for key, pattern in INSTITUTIONAL_CLAIM_PATTERNS.items():
+        if re.search(pattern, text, re.IGNORECASE):
+            findings.append({
+                "pattern": key,
+                "description": INSTITUTIONAL_COUNTERS[key],
+                "weight": 1,
+                "category": "Narrative Patterns"
+            })
+
+    for key, pattern in CORPORATE_AND_NGO_PATTERNS.items():
+        if re.search(pattern, text, re.IGNORECASE):
+            findings.append({
+                "pattern": key,
+                "description": CORPORATE_COUNTERS[key],
+                "weight": 1,
+                "category": "Corporate / NGO Influence"
+            })
+
+    for key, pattern in BEHAVIOURAL_INFLUENCE_PATTERNS.items():
+        if re.search(pattern, text, re.IGNORECASE):
+            findings.append({
+                "pattern": key,
+                "description": BEHAVIOURAL_COUNTERS[key],
+                "weight": 1,
+                "category": "Behavioural Influence"
+            })
+
+    if not findings:
+        if return_details:
+            return []
+        return "No dominant institutional or behavioural influence patterns detected."
+
+    if return_details:
+        return findings
+
+    return "Structural Observations:\n" + "\n\n".join(f"• {item['description']}" for item in findings)
